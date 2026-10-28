@@ -1789,15 +1789,16 @@ static SCRCPY_THREAD_API scrcpy_session_worker(void *opaque)
 			/* A stale server holding tcp:5037 never answers; restart it. */
 			snprintf(command, sizeof(command), "\"%s\" kill-server", session->adb_path);
 			scrcpy_command_step(session, "Kill unresponsive ADB server", command);
-#ifdef _WIN32
-			scrcpy_command_step(session, "Kill stale adb processes", "taskkill /F /IM adb.exe");
-#else
-			scrcpy_command_step(session, "Kill stale adb processes", "pkill -9 -x adb");
-#endif
-			Sleep(300);
 			snprintf(command, sizeof(command), "\"%s\" start-server", session->adb_path);
 			if (!scrcpy_command_step(session, "Restart ADB server", command))
 				goto cleanup_winsock;
+		}
+
+		if (!session->server_jar_path || !os_file_exists(session->server_jar_path)) {
+			obs_log(LOG_ERROR,
+				"scrcpy-server.jar not found at '%s'; set the full path to the file in the source properties",
+				session->server_jar_path ? session->server_jar_path : "");
+			break;
 		}
 
 		snprintf(command, sizeof(command), "%s -s %s push \"%s\" /data/local/tmp/scrcpy-server.jar",

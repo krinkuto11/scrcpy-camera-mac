@@ -953,24 +953,15 @@ static bool scrcpy_run_adb_command(const char *adb_path, const char *args, char 
 /*
  * Recover from a wedged adb server: a stale or foreign-version server can keep
  * tcp:5037 (and the USB interface) busy without answering, so every adb call
- * fails with "cannot connect to daemon". Ask it to exit, kill any adb process
- * that ignores that, then start a fresh server.
+ * fails with "cannot connect to daemon". Ask it to exit and start a fresh one.
+ * Never kill adb processes outright: a concurrent adb call can fail
+ * transiently while a healthy server is running, and killing it then only
+ * makes things worse.
  */
 static bool scrcpy_recover_adb_server(const char *adb_path)
 {
 	obs_log(LOG_WARNING, "scrcpy: adb server not responding, restarting it");
 	scrcpy_run_adb_command(adb_path, "kill-server", NULL, 0);
-	if (scrcpy_run_adb_command(adb_path, "start-server", NULL, 0))
-		return true;
-
-	obs_log(LOG_WARNING, "scrcpy: adb server still unresponsive, killing stale adb processes");
-#ifdef _WIN32
-	system("taskkill /F /IM adb.exe >nul 2>&1");
-#else
-	if (system("pkill -9 -x adb >/dev/null 2>&1") == -1)
-		obs_log(LOG_WARNING, "scrcpy: failed to run pkill");
-#endif
-	Sleep(300);
 	return scrcpy_run_adb_command(adb_path, "start-server", NULL, 0);
 }
 
