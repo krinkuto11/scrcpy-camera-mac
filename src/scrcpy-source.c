@@ -26,6 +26,7 @@
 
 #ifdef _WIN32
 #include <stdio.h>
+#include <stdlib.h>
 #include <windows.h>
 #else
 #include <stdio.h>
@@ -949,6 +950,30 @@ static bool scrcpy_run_adb_command(const char *adb_path, const char *args, char 
 #endif
 }
 
+/*
+ * Recover from a wedged adb server: a stale or foreign-version server can keep
+ * tcp:5037 (and the USB interface) busy without answering, so every adb call
+ * fails with "cannot connect to daemon". Ask it to exit, kill any adb process
+ * that ignores that, then start a fresh server.
+ */
+static bool scrcpy_recover_adb_server(const char *adb_path)
+{
+	obs_log(LOG_WARNING, "scrcpy: adb server not responding, restarting it");
+	scrcpy_run_adb_command(adb_path, "kill-server", NULL, 0);
+	if (scrcpy_run_adb_command(adb_path, "start-server", NULL, 0))
+		return true;
+
+	obs_log(LOG_WARNING, "scrcpy: adb server still unresponsive, killing stale adb processes");
+#ifdef _WIN32
+	system("taskkill /F /IM adb.exe >nul 2>&1");
+#else
+	if (system("pkill -9 -x adb >/dev/null 2>&1") == -1)
+		obs_log(LOG_WARNING, "scrcpy: failed to run pkill");
+#endif
+	Sleep(300);
+	return scrcpy_run_adb_command(adb_path, "start-server", NULL, 0);
+}
+
 static int scrcpy_discover_mdns_devices(const char *adb_path)
 {
 	char output[4096];
@@ -1020,7 +1045,9 @@ static int scrcpy_refresh_device_list(struct scrcpy_source *context, obs_propert
 	obs_property_list_clear(list);
 	obs_property_list_add_string(list, DEVICE_LIST_PLACEHOLDERS[DEVICE_LIST_PLACEHOLDER_SELECT_DEVICE], "");
 
-	if (!scrcpy_run_adb_command(adb_path, "devices -l", devices_output, sizeof(devices_output))) {
+	if (!scrcpy_run_adb_command(adb_path, "devices -l", devices_output, sizeof(devices_output)) &&
+	    (!scrcpy_recover_adb_server(adb_path) ||
+	     !scrcpy_run_adb_command(adb_path, "devices -l", devices_output, sizeof(devices_output)))) {
 		obs_log(LOG_WARNING, "failed to run adb command using '%s'", adb_path);
 		obs_property_list_add_string(list, DEVICE_LIST_PLACEHOLDERS[DEVICE_LIST_PLACEHOLDER_ADB_FAILED], "");
 		return 0;

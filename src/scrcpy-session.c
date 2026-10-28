@@ -1784,9 +1784,21 @@ static SCRCPY_THREAD_API scrcpy_session_worker(void *opaque)
 		width = 0;
 		height = 0;
 
-		snprintf(command, sizeof(command), "%s start-server", session->adb_path);
-		if (!scrcpy_command_step(session, "Start ADB server", command))
-			goto cleanup_winsock;
+		snprintf(command, sizeof(command), "\"%s\" start-server", session->adb_path);
+		if (!scrcpy_command_step(session, "Start ADB server", command)) {
+			/* A stale server holding tcp:5037 never answers; restart it. */
+			snprintf(command, sizeof(command), "\"%s\" kill-server", session->adb_path);
+			scrcpy_command_step(session, "Kill unresponsive ADB server", command);
+#ifdef _WIN32
+			scrcpy_command_step(session, "Kill stale adb processes", "taskkill /F /IM adb.exe");
+#else
+			scrcpy_command_step(session, "Kill stale adb processes", "pkill -9 -x adb");
+#endif
+			Sleep(300);
+			snprintf(command, sizeof(command), "\"%s\" start-server", session->adb_path);
+			if (!scrcpy_command_step(session, "Restart ADB server", command))
+				goto cleanup_winsock;
+		}
 
 		snprintf(command, sizeof(command), "%s -s %s push \"%s\" /data/local/tmp/scrcpy-server.jar",
 			 session->adb_path, session->device_serial, session->server_jar_path);
