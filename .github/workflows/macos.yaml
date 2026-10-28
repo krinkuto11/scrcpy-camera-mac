@@ -12,12 +12,19 @@ permissions:
 jobs:
   macos:
     name: Build for macOS (Universal) 🍏
-    runs-on: macos-15
+    runs-on: macos-26
     defaults:
       run:
         shell: zsh --no-rcs --errexit --pipefail {0}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Select Xcode 26 🧰
+        run: |
+          xcode_app="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          print "Using ${xcode_app}"
+          sudo xcode-select --switch "${xcode_app}/Contents/Developer"
+          xcrun --sdk macosx --show-sdk-version
 
       - name: Resolve OBS source hash 🔑
         run: |
