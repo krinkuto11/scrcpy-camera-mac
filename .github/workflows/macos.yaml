@@ -1,0 +1,47 @@
+name: macOS Build
+run-name: macOS build for ${{ github.ref_name }} 🍏
+on:
+  push:
+    branches:
+      - 'claude/**'
+      - master
+      - main
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  macos:
+    name: Build for macOS (Universal) 🍏
+    runs-on: macos-15
+    defaults:
+      run:
+        shell: zsh --no-rcs --errexit --pipefail {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve OBS source hash 🔑
+        run: |
+          if ! jq -e '.dependencies["obs-studio"].hashes.macos' buildspec.json > /dev/null; then
+            obs_version="$(jq -r '.dependencies["obs-studio"].version' buildspec.json)"
+            obs_hash="$(curl -fsSL "https://github.com/obsproject/obs-studio/archive/refs/tags/${obs_version}.tar.gz" | shasum -a 256 | cut -d ' ' -f 1)"
+            jq --arg hash "${obs_hash}" '.dependencies["obs-studio"].hashes.macos = $hash' buildspec.json > buildspec.tmp
+            mv buildspec.tmp buildspec.json
+          fi
+
+      - name: Configure 🛠️
+        run: cmake --preset macos -DCODESIGN_IDENTITY=-
+
+      - name: Build 🧱
+        run: cmake --build --preset macos
+
+      - name: Install & Package 📀
+        run: |
+          cmake --install build_macos --config RelWithDebInfo --prefix "${GITHUB_WORKSPACE}/release"
+          cd release
+          ditto -c -k --keepParent scrcpy-camera.plugin scrcpy-camera-macos-universal.zip
+
+      - name: Upload plugin 📡
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrcpy-camera-macos-universal
+          path: release/scrcpy-camera-macos-universal.zip
