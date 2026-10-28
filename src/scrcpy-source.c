@@ -101,10 +101,27 @@ static const char *scrcpy_default_adb_path(void)
 	return resolved;
 }
 #define DEFAULT_ADB_PATH scrcpy_default_adb_path()
+
+/* `brew install scrcpy` ships the matching server next to the client. */
+static const char *scrcpy_default_server_jar_path(void)
+{
+	static const char *const candidates[] = {"/opt/homebrew/share/scrcpy/scrcpy-server",
+						 "/usr/local/share/scrcpy/scrcpy-server", NULL};
+
+	for (int i = 0; candidates[i]; i++) {
+		if (access(candidates[i], R_OK) == 0)
+			return candidates[i];
+	}
+	return "scrcpy-server.jar";
+}
+#define DEFAULT_SERVER_JAR_PATH scrcpy_default_server_jar_path()
 #define ADB_FILTER "All Files (*)"
 #else
 static const char *const DEFAULT_ADB_PATH = "adb";
 #define ADB_FILTER "All Files (*.*)"
+#endif
+#ifndef DEFAULT_SERVER_JAR_PATH
+#define DEFAULT_SERVER_JAR_PATH "scrcpy-server.jar"
 #endif
 static const char *const DEFAULT_SCRCPY_VERSION = "5.0.1";
 
@@ -311,7 +328,7 @@ static void scrcpy_source_update(void *data, obs_data_t *settings)
 	bfree(context->audio_codec);
 	context->adb_path = bstrdup(adb_path && adb_path[0] ? adb_path : DEFAULT_ADB_PATH);
 	context->server_jar_path =
-		bstrdup(server_jar_path && server_jar_path[0] ? server_jar_path : "scrcpy-server.jar");
+		bstrdup(server_jar_path && server_jar_path[0] ? server_jar_path : DEFAULT_SERVER_JAR_PATH);
 	context->scrcpy_version =
 		bstrdup(scrcpy_version && scrcpy_version[0] ? scrcpy_version : DEFAULT_SCRCPY_VERSION);
 	context->video_codec = bstrdup(video_codec && video_codec[0] ? video_codec : "h264");
@@ -431,7 +448,7 @@ static void scrcpy_source_defaults(obs_data_t *settings)
 	obs_data_set_default_string(settings, SETTING_CONNECTION_TYPE, "scan");
 	obs_data_set_default_string(settings, SETTING_DEVICE_SERIAL, "");
 	obs_data_set_default_string(settings, SETTING_MANUAL_SERIAL, "");
-	obs_data_set_default_string(settings, SETTING_SERVER_JAR_PATH, "scrcpy-server.jar");
+	obs_data_set_default_string(settings, SETTING_SERVER_JAR_PATH, DEFAULT_SERVER_JAR_PATH);
 	obs_data_set_default_string(settings, SETTING_SCRCPY_VERSION, DEFAULT_SCRCPY_VERSION);
 	obs_data_set_default_string(settings, SETTING_VIDEO_CODEC, "h264");
 	obs_data_set_default_int(settings, SETTING_LOCAL_PORT, 27183);
