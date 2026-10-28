@@ -29,6 +29,7 @@
 #include <windows.h>
 #else
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -65,6 +66,41 @@
 #ifdef _WIN32
 static const char *const DEFAULT_ADB_PATH = "adb.exe";
 #define ADB_FILTER "Executable (*.exe);;All Files (*.*)"
+#elif defined(__APPLE__)
+/*
+ * OBS launched from Finder/Dock inherits launchd's minimal PATH
+ * (/usr/bin:/bin:/usr/sbin:/sbin), so a bare "adb" would never resolve.
+ * Probe the usual install locations (Homebrew on Apple Silicon and Intel,
+ * Android Studio's SDK) and fall back to "adb" for PATH lookup.
+ */
+static const char *scrcpy_default_adb_path(void)
+{
+	static char resolved[1024];
+	static const char *const candidates[] = {"/opt/homebrew/bin/adb", "/usr/local/bin/adb", NULL};
+	const char *home;
+
+	if (resolved[0])
+		return resolved;
+
+	for (int i = 0; candidates[i]; i++) {
+		if (access(candidates[i], X_OK) == 0) {
+			snprintf(resolved, sizeof(resolved), "%s", candidates[i]);
+			return resolved;
+		}
+	}
+
+	home = getenv("HOME");
+	if (home && home[0]) {
+		snprintf(resolved, sizeof(resolved), "%s/Library/Android/sdk/platform-tools/adb", home);
+		if (access(resolved, X_OK) == 0)
+			return resolved;
+	}
+
+	snprintf(resolved, sizeof(resolved), "adb");
+	return resolved;
+}
+#define DEFAULT_ADB_PATH scrcpy_default_adb_path()
+#define ADB_FILTER "All Files (*)"
 #else
 static const char *const DEFAULT_ADB_PATH = "adb";
 #define ADB_FILTER "All Files (*.*)"
@@ -819,7 +855,7 @@ static bool scrcpy_run_adb_command(const char *adb_path, const char *args, char 
 {
 	char command[1024];
 
-	_snprintf_s(command, sizeof(command), _TRUNCATE, "%s %s", adb_path, args);
+	_snprintf_s(command, sizeof(command), _TRUNCATE, "\"%s\" %s", adb_path, args);
 
 #ifdef _WIN32
 	STARTUPINFOA si;

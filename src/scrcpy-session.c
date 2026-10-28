@@ -954,8 +954,13 @@ static bool scrcpy_init_decoder(struct scrcpy_session *session, enum AVCodecID c
 
 	if (session->hw_decoding) {
 		/* Priority order is deliberate and unchanged: NVIDIA first, then the
-		 * open stacks, then the Windows backends. */
+		 * open stacks, then the Windows backends. On macOS, VideoToolbox is the
+		 * only hardware backend FFmpeg offers. */
+#ifdef __APPLE__
+		const char *hw_types[] = {"videotoolbox", NULL};
+#else
 		const char *hw_types[] = {"cuda", "vaapi", "vdpau", "qsv", "d3d11va", "dxva2", NULL};
+#endif
 
 		for (int i = 0; hw_types[i]; i++) {
 			enum AVHWDeviceType hw_type = av_hwdevice_find_type_by_name(hw_types[i]);

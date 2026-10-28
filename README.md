@@ -18,7 +18,7 @@ By integrating `scrcpy` directly into OBS Studio, this plugin eliminates the nee
 - **Screen & Camera Modes:** Choose to mirror the device's screen or use its front/back cameras as a webcam.
 - **Frame-rate Selection:** Cap the screen stream at 30/60 fps, or set the camera to 30/60 fps — camera sources additionally support 120/240 fps high-speed capture.
 - **Audio Forwarding:** Optionally capture device audio (Android 11+) with support for Output, Playback (Android 13+ duplication), and Mic sources plus Opus, AAC, FLAC, and raw PCM codecs.
-- **Hardware Decoding:** Utilizes FFmpeg hardware decoding (CUDA, QSV, D3D11VA, DXVA2; plus VAAPI and VDPAU on Linux) for optimized performance. The backend is chosen by querying what the selected video codec actually supports, and the one in use is named in the OBS log (`video decoding: vaapi (hevc)`), so a fallback to software is visible rather than silent.
+- **Hardware Decoding:** Utilizes FFmpeg hardware decoding (CUDA, QSV, D3D11VA, DXVA2; VAAPI and VDPAU on Linux; VideoToolbox on macOS) for optimized performance. The backend is chosen by querying what the selected video codec actually supports, and the one in use is named in the OBS log (`video decoding: vaapi (hevc)`), so a fallback to software is visible rather than silent.
 - **Configurable Video Settings:** Adjust video codec (H.264, H.265), bitrate, maximum resolution, and camera size right from the OBS source properties.
 - **Automatic Device Discovery:** Easily select from a list of connected ADB devices.
 
@@ -87,6 +87,23 @@ cmake --build --preset ubuntu-x86_64
 ```
 
 The resulting plugin is built as `build_x86_64/scrcpy-camera.so`; outputs are also staged under `build_x86_64/rundir/` so you can point a local OBS install at it. On Linux, hardware decoding uses the VAAPI and VDPAU backends (plus CUDA where available).
+
+### macOS
+
+Requirements: macOS 12+, Xcode 16+, CMake 3.28+ and `jq` (`brew install cmake jq`). Then:
+
+```bash
+cmake --preset macos
+cmake --build --preset macos
+```
+
+The CI script `.github/scripts/build-macos` does the same with the `macos-ci` preset and fills in the OBS source archive hash for macOS in `buildspec.json` if it is missing. The result is a Universal (arm64 + x86_64) `scrcpy-camera.plugin` bundle; copy it to `~/Library/Application Support/obs-studio/plugins/` (or install the `.pkg` produced by CI).
+
+On macOS:
+
+- Install ADB with `brew install android-platform-tools` (or Android Studio). Because OBS started from the Dock does not inherit your shell `PATH`, the plugin looks for `adb` in `/opt/homebrew/bin`, `/usr/local/bin` and `~/Library/Android/sdk/platform-tools` by default; otherwise set the full path in **ADB executable**.
+- Hardware decoding uses **VideoToolbox** (H.264 and H.265 on Apple Silicon and supported Intel Macs).
+- Unsigned builds are quarantined by Gatekeeper; if OBS refuses to load the plugin, run `xattr -dr com.apple.quarantine ~/Library/Application\ Support/obs-studio/plugins/scrcpy-camera.plugin`.
 
 ## License
 

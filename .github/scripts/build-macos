@@ -95,6 +95,16 @@ build() {
 
   pushd ${project_root}
 
+  # The OBS source archive hash for macOS is resolved on demand when it is not
+  # pinned in buildspec.json (GitHub serves the same tag archive to every client).
+  if ! jq -e '.dependencies["obs-studio"].hashes.macos' ${buildspec_file} > /dev/null {
+    local obs_version="$(jq -r '.dependencies["obs-studio"].version' ${buildspec_file})"
+    log_info "Resolving SHA256 of OBS Studio ${obs_version} sources..."
+    local obs_hash="$(curl -fsSL "https://github.com/obsproject/obs-studio/archive/refs/tags/${obs_version}.tar.gz" | shasum -a 256 | cut -d ' ' -f 1)"
+    jq --arg hash "${obs_hash}" '.dependencies["obs-studio"].hashes.macos = $hash' ${buildspec_file} > ${buildspec_file}.tmp
+    mv ${buildspec_file}.tmp ${buildspec_file}
+  }
+
   local -a cmake_args=()
   local -a cmake_build_args=(--build)
   local -a cmake_install_args=(--install)
